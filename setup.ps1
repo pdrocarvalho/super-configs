@@ -39,6 +39,9 @@ foreach ($app in $apps) {
 Log "Desable TaskBar's widgets..."
 reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarDa /t REG_DWORD /d 0 /f >> $logFile 2>&1
 
+Log "Desable TaskView button..."
+reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v ShowTaskViewButton /t REG_DWORD /d 0 /f >> $logFile 2>$1
+
 #  Windows Update
 Log "Verifying Windows updates..."
 try {
