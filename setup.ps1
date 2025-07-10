@@ -5,12 +5,35 @@
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $logFile = "$scriptDir\log.txt"
 
-Function Log {
+function Log {
     param([string]$message)
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     "$timestamp - $message" | Out-File -FilePath $logFile -Append
-    Write-Host $message
 }
+
+function Show-Status {
+    param(
+	[string]$action,
+	[scriptblock]$command
+    )
+
+    $dots = '.' * (50 - $action.Length)
+    Write-Host -NoNewLine "$action$dots"
+
+    try {
+	& $command
+	Write-Host "[  " -NoNewLine
+	Write-Host "OK" -ForegroundColor Green -NoNewLine
+	Write-Host "  ]"
+	Log "$action - SUCCED" 
+    } catch { 
+	Write-Host "[" -NoNewLine
+	Write-Host "FAILED" -ForegroundColor Red -NoNewLine
+	Write-Host "]" 
+	Log "$action - FAILED: $_"
+    }
+}
+
 
 Log "========== Starting Settings =========="
 
@@ -28,28 +51,30 @@ $apps = @(
 )
 
 foreach ($app in $apps) {
-    Log "Installing: $app"
-    winget install --id=$app -e --accept-source-agreements --accept-package-agreements >> $logFile 2>&1
-}
+    Show-Status "Installing: $app"{ winget install --id=$app -e --accept-source-agreements --accept-package-agreements >> $logFile 2>&1 }
+    }
+
 
 # --------------------------
 # SYSTEM SETTINGS
 # --------------------------
 
-Log "Desable TaskBar's widgets..."
-reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarDa /t REG_DWORD /d 0 /f >> $logFile 2>&1
+Show-Status "Desable TaskBar's widgets" { 
+    reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarDa /t REG_DWORD /d 0 /f >> $logFile 2>&1
+}
 
-Log "Desable TaskView button..."
-reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v ShowTaskViewButton /t REG_DWORD /d 0 /f >> $logFile 2>$1
-
+Show-Status "Desable TaskView button" {
+    reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v ShowTaskViewButton /t REG_DWORD /d 0 /f >> $logFile 2>$1
+}
 #  Windows Update
-Log "Verifying Windows updates..."
+Show-Status "Verifying Windows updates" {
 try {
     Install-Module PSWindowsUpdate -Force -Confirm:$false -Scope CurrentUser >> $logFile 2>&1
     Import-Module PSWindowsUpdate >> $logFile 2>&1
     Get-WindowsUpdate -AcceptAll -Install -AutoReboot >> $logFile 2>&1
 } catch {
     Log "Updates verification error: $_"
+}
 }
 
 # --------------------------
@@ -60,17 +85,20 @@ Log "Removing bloatware..."
 $bloatApps = @("*xbox*", "*bing*", "*gethelp*", "*skypeapp*", "*feedback*", "*yourphone*", "*people*", "*solitaire*")
 
 foreach ($app in $bloatApps) {
-    Log "Removing: $app"
+    Show-Status "Removing: $app" {
     Get-AppxPackage -Name $app | Remove-AppxPackage -ErrorAction SilentlyContinue >> $logFile 2>&1
+    }
 }
+
 
 # --------------------------
 # UNINSTALL COPILOT
 # --------------------------
 
-Log "Removing Windows Copilot..."
+Show-Status "Removing Windows Copilot"{
 reg add "HKCU\Software\Policies\Microsoft\Windows\WindowsCopilot" /v TurnOffWindowsCopilot /t REG_DWORD /d 1 /f >> $logFile 2>&1
 reg add "HKLM\Software\Policies\Microsoft\Windows\WindowsCopilot" /v TurnOffWindowsCopilot /t REG_DWORD /d 1 /f >> $logFile 2>&1
+}
 
 # --------------------------
 # PERFORMANCE SETTINGS (Opcional)
@@ -79,10 +107,12 @@ reg add "HKLM\Software\Policies\Microsoft\Windows\WindowsCopilot" /v TurnOffWind
 $resp = Read-Host "Want to apply performance settings? (y/n)"
 
 if ($resp -eq "y" -or $resp -eq "Y") {
-    Log "Applying performance settings..."
 
     $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects"
+    
+    Show-Status "Applying performance settings" {
     Set-ItemProperty -Path $regPath -Name VisualFXSetting -Value 2 >> $logFile 2>&1
+    }
 
     $effects = @{
         "AnimateMinMax" = 0
@@ -102,16 +132,18 @@ if ($resp -eq "y" -or $resp -eq "Y") {
     $regEffectsPath = "HKCU:\Control Panel\Desktop"
 
     foreach ($key in $effects.Keys) {
+	Show-Status "Setting $key" {
         Set-ItemProperty -Path $regEffectsPath -Name $key -Value $effects[$key] >> $logFile 2>&1
+	}
     }
 
     rundll32.exe user32.dll,UpdatePerUserSystemParameters
     Log "Visual effects settings applied."
 
-    Log "Setting power mode: Max Performance..."
+    Show-Status "Setting power mode: Max Performance"{
     powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61 >> $logFile 2>&1
     powercfg -setactive e9a42b02-d5df-448d-aa00-03f14749eb61 >> $logFile 2>&1
-    Log "Power mode defined."
+    }
 } else {
     Log "Performance settings ignored."
 }
