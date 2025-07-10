@@ -60,7 +60,7 @@ foreach ($app in $apps) {
 # --------------------------
 
 Show-Status "Desable TaskBar's widgets" { 
-    reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarDa /t REG_DWORD /d 0 /f >> $logFile 2>&1
+    reg add "HKLM\Software\Policies\Microsoft\Dsh" /v AllowNewsAndInterests /t REG_DWORD /d 0 /f >> $logFile 2>&1
 }
 
 Show-Status "Desable TaskView button" {
